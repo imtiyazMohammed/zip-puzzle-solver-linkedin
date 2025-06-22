@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Zip Puzzle Solver</title>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: sans-serif;
+      padding: 1rem;
+    }
+    textarea {
+      width: 100%;
+      height: 6em;
+      font-family: monospace;
+      font-size: 14px;
+      background: #222;
+      color: #eee;
+      border: 1px solid #444;
+      margin-bottom: .5rem;
+    }
+    button {
+      padding: .5rem 1rem;
+      background: #333;
+      color: #eee;
+      border: 1px solid #555;
+      cursor: pointer;
+      margin-bottom: 1rem;
+    }
+    button:hover { background: #444; }
+
+    /* THIS IS THE GRID RULE */
+    .grid {
+      display: grid;
+      gap: 2px;
+      margin-top: 1rem;
+    }
+
+    .cell {
+      width: 40px; height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #222;
+      border: 1px solid #444;
+      font-size: 14px;
+    }
+    .cell.active {
+      background: gold;
+      color: #111;
+      transition: background 0.2s;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Zip Puzzle Solver</h1>
+  <textarea id="matrixInput">0 0 3 0
+5 0 4 0
+0 0 6 0
+1 0 2 0</textarea><br/>
+  <button id="solveBtn">Solve &amp; Animate</button>
+
+  <!-- Added class="grid" here so it actually becomes a CSS Grid! -->
+  <div id="gridContainer" class="grid"></div>
+
+  <script>
+  // --- Zip solver in JS (pure DFS backtracker) ---
+  function solveZipPuzzle(grid) {
+    const m = grid.length, n = grid[0].length;
+    let result = "", answer = "";
+    let found = false;
+
+    function allVisited() {
+      return grid.every(row => row.every(v => v === -1));
+    }
+
+    function dfs(i, j, k, currK) {
+      if (found) return;
+      if (i<0||i>=m||j<0||j>=n) return;
+      const cell = grid[i][j];
+      if (cell === -1 || cell > currK) return;
+
+      grid[i][j] = -1;
+      if (cell === currK) currK++;
+
+      if (currK === k+1 && allVisited()) {
+        answer = result;
+        found = true;
+        grid[i][j] = cell;
+        return;
+      }
+
+      for (let [di,dj,mv] of [
+        [ 1,  0, 'D'],
+        [-1,  0, 'U'],
+        [ 0,  1, 'R'],
+        [ 0, -1, 'L'],
+      ]) {
+        result += mv;
+        dfs(i+di, j+dj, k, currK);
+        if (found) {
+          grid[i][j] = cell;
+          return;
+        }
+        result = result.slice(0,-1);
+      }
+
+      grid[i][j] = cell;
+    }
+
+    // locate 1 and kMax
+    let sr=0, sc=0, kMax=0;
+    for (let i=0;i<m;i++) {
+      for (let j=0;j<n;j++) {
+        kMax = Math.max(kMax, grid[i][j]);
+        if (grid[i][j] === 1) { sr = i; sc = j; }
+      }
+    }
+
+    dfs(sr, sc, kMax, 2);
+    return found ? answer : "";
+  }
+
+  // --- UI logic ---
+  const matrixInput   = document.getElementById('matrixInput');
+  const solveBtn      = document.getElementById('solveBtn');
+  const gridContainer = document.getElementById('gridContainer');
+  let timerId;
+
+  solveBtn.addEventListener('click', () => {
+    // 1) Parse the textarea into a 2D array
+    const text = matrixInput.value.trim();
+    const rows = text.split('\n').map(r => r.trim().split(/\s+/).map(Number));
+    const m = rows.length, n = rows[0].length;
+
+    // 2) Clone for solver and run
+    const clone = rows.map(r => r.slice());
+    const moves = solveZipPuzzle(clone);
+    if (!moves) {
+      alert('No solution found!');
+      return;
+    }
+
+    // 3) Render the initial grid
+    gridContainer.innerHTML = '';
+    // ensure the grid has the correct #columns
+    gridContainer.style.gridTemplateColumns = `repeat(${n}, 40px)`;
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < n; j++) {
+        const div = document.createElement('div');
+        div.className = 'cell';
+        div.textContent = rows[i][j];
+        gridContainer.appendChild(div);
+      }
+    }
+
+    // 4) Find the start cell and begin animation
+    let [ci, cj] = [0,0];
+    rows.forEach((r,i) => r.forEach((v,j) => { if(v===1){ci=i; cj=j;} }));
+    const cells = gridContainer.children;
+    function idx(i,j){ return i*n + j; }
+
+    cells[idx(ci,cj)].classList.add('active');
+
+    clearInterval(timerId);
+    let step = 0;
+    timerId = setInterval(() => {
+      if (step >= moves.length) {
+        clearInterval(timerId);
+        return;
+      }
+      cells[idx(ci,cj)].classList.remove('active');
+      const mv = moves[step++];
+      if (mv === 'D') ci++;
+      if (mv === 'U') ci--;
+      if (mv === 'R') cj++;
+      if (mv === 'L') cj--;
+      cells[idx(ci,cj)].classList.add('active');
+    }, 300);
+  });
+  </script>
+
+</body>
+</html>
